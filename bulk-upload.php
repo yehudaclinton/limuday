@@ -32,14 +32,18 @@ class BulkUploadPlugin extends Plugin
         $action = $event['action'];
       if($action == 'bulkUpload'){
 
-          $form = $event['form'];
+        $form = $event['form'];
     
-          $uploadedFiles = $form->getData()['my_files'];
+        $uploadedFiles = $form->getData()['my_files'];
         foreach ($uploadedFiles as $filePath => $fileInfo) {
-          $parser = new \Smalot\PdfParser\Parser();
+                   $parser = new \Smalot\PdfParser\Parser();
           $pdf = $parser->parseFile($fileInfo['path']);
           $metadata = $pdf->getDetails();
-          $this->grav['log']->debug('meta6: '.$metadata['CreationDate']);
+
+          $shabbos = strtotime("next Saturday", strtotime($metadata['CreationDate']));
+          $date = Zmanim::jewishCalendar(Carbon::createFromDate(date('Y', $shabbos), date('m', $shabbos), date('d', $shabbos)));
+          $parsha = HebrewDateFormatter::create()->setHebrewFormat(true)->formatParsha($date);
+
           $postName = str_replace("-", "", substr($metadata['CreationDate'],0,10));
 
           $folder = __DIR__ . '/../../pages/04.limuday/'.$postName;
@@ -49,23 +53,24 @@ class BulkUploadPlugin extends Plugin
             mkdir($folder);
           }
 
-//$this->grav['log']->debug('path: '.$fileInfo['path']);
           copy($fileInfo['path'], $folder."/".$fileInfo['name']);
           $text = $pdf->getText();
 
-$index = 11;
-foreach (explode("\n", $text) as $index => $line) {
-  if (strpos($line, 'halacha') !== false) break;
-}
+          $index = 11;
+          $lines = explode("\n", $text);
+          foreach ($lines as $index => $line) {
+            if (strpos($line, 'Halachic') !== false) break; //halacha
+          }
+          $this->grav['log']->debug('index: '.date('d', $shabbos)); 
+          $title = (!empty($lines[$index + 1])) ? $lines[$index + 1] : 'title'; //11,2,6
+          $this->grav['log']->debug('title: '.$title);
           $content = null;
-          $title = explode("\n", $text)[$index+1]; //11,2,6
           if (file_exists($file)) $content = file_get_contents($file);
 
-$this->grav['log']->debug('title: '.$title);
           $path = $postName.'/'.$fileInfo['name'];
           $data = 'data="'.$path.'"';
           if ($content==null) $content = "---\ntitle: $title\n---\n";
-          file_put_contents($file, $content."<object $data type='application/pdf' width='100%' height='500px'><p>PDF</p></object>");
+          file_put_contents($file, $content."<object $data type='application/pdf' width='100%' height='500px'><p>$parsha</p></object>");
         }
       }
 
